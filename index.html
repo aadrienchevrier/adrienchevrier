@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LES STRATES</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;background:#fff;color:#111;font-family:Helvetica,Arial,sans-serif}
+html,body{height:100%;overflow:hidden}
+#site{position:fixed;inset:0;overflow:hidden;background:#fff}
+.strate{position:absolute;inset:0;width:100%;height:100%;display:none;background:#fff}
+.strate.active{display:block}
+/* Le carré est positionné avec un décalage en pourcentage : l'espace restant est
+   réparti de façon identique en haut et en bas, au demi-pixel près. */
+.composition{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(calc(100vw - 6px),calc(100dvh - 6px));height:min(calc(100vw - 6px),calc(100dvh - 6px));display:block}
+.cell{position:relative;min-width:0;min-height:0;overflow:hidden}
+.blank{background:#fff}
+.media{position:absolute;inset:0;width:100%;height:100%;background:#111;cursor:pointer}
+.media img{width:100%;height:100%;display:block;object-fit:cover}
+.text{background:#000;color:#fff;padding:clamp(16px,3vw,38px);display:flex;flex-direction:column;justify-content:flex-end;overflow:auto}
+.text .n{font-size:10px;letter-spacing:.08em;margin-bottom:14px}
+.text h2{font-weight:400;font-size:clamp(17px,2vw,26px);line-height:1.1;margin:0 0 12px}
+.text p{font-size:clamp(12px,1.1vw,15px);line-height:1.45;margin:0;max-width:34em}
+/* Cartel : trois lignes à gauche ou à droite de l'image, alignées sur son bord inférieur. */
+#strate-meta{position:fixed;z-index:5;bottom:calc(50% - min(calc(100vw - 6px),calc(100dvh - 6px))/2 + 24px);display:flex;flex-direction:column;gap:7px;font-size:12px;line-height:1.3;color:#111;white-space:nowrap;font-family:"Segoe UI Variable Text","Segoe UI Variable Display","Segoe UI Variable","Segoe UI",Helvetica,Arial,sans-serif;font-weight:600}
+#strate-meta span{display:block}
+#strate-meta.side-left{left:12px;right:calc(50% + min(calc(100vw - 6px),calc(100dvh - 6px))/2 + 8px);align-items:flex-end;text-align:right}
+#strate-meta.side-right{right:12px;left:calc(50% + min(calc(100vw - 6px),calc(100dvh - 6px))/2 + 8px);align-items:flex-start;text-align:left}
+@media(max-width:760px){#strate-meta{font-size:10px}#strate-meta.side-left{left:4px;right:calc(50% + min(calc(100vw - 6px),calc(100dvh - 6px))/2 + 5px)}#strate-meta.side-right{right:4px;left:calc(50% + min(calc(100vw - 6px),calc(100dvh - 6px))/2 + 5px)}}
+/* Chaque strate présente uniquement son média dans un carré centré. */
+/* Triangle de lecture blanc, centré, sans fond ni ombre. */
+.video-play{position:absolute;left:50%;top:50%;width:0;height:0;transform:translate(-50%,-50%);border-top:7px solid transparent;border-bottom:7px solid transparent;border-left:11px solid #fff;pointer-events:none}
+.arrow{position:absolute;z-index:2;top:50%;transform:translateY(-50%);border:0;background:rgba(0,0,0,.55);color:#fff;font-size:26px;width:34px;height:44px;cursor:pointer}
+.arrow.prev{left:0}.arrow.next{right:0}
+.count{position:absolute;right:8px;bottom:8px;background:rgba(0,0,0,.65);color:#fff;padding:4px 6px;font-size:10px}
+#viewer{display:none;position:fixed;inset:0;background:#000;z-index:20;color:#fff}
+#viewer.open{display:flex;align-items:center;justify-content:center}
+#viewer img{width:100%;height:100%;object-fit:contain}
+#viewer video{width:100%;height:100%;object-fit:contain}
+/* Masquer le menu « trois points » des commandes vidéo natives */
+#viewer video::-webkit-media-controls-overflow-button{display:none!important}
+.close,.nav{position:absolute;z-index:2;border:0;background:rgba(0,0,0,.55);color:#fff;cursor:pointer}
+.close{right:16px;top:12px;font-size:32px;padding:4px 12px}
+.nav{top:50%;transform:translateY(-50%);font-size:34px;width:48px;height:60px}
+.nav.prev{left:10px}.nav.next{right:10px}
+.caption{position:absolute;left:12px;bottom:12px;background:rgba(0,0,0,.55);padding:6px 8px;font-size:11px}
+/* Navigation verticale : une ligne fine et un curseur discret */
+#strate-control{position:fixed;z-index:10;right:3px;top:3px;bottom:3px;height:auto;width:24px;margin:0;padding:0;border:0;background:transparent;display:flex;align-items:stretch;justify-content:center;touch-action:none}
+/* La ligne est dessinée indépendamment du slider : son axe est exactement au centre du contrôle. */
+#strate-control::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:1px;transform:translateX(-50%);background:#bdbdbd;pointer-events:none}
+#strate-slider{position:relative;z-index:1;appearance:none;-webkit-appearance:none;writing-mode:vertical-lr;direction:ltr;width:24px;height:100%;margin:0;padding:0;background:transparent;cursor:ns-resize;touch-action:none;outline:none;align-self:stretch}
+#strate-slider::-webkit-slider-runnable-track{width:24px;background:transparent;border:0}
+#strate-slider::-moz-range-track{width:24px;background:transparent;border:0}
+#strate-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:12px;height:2px;border:0;border-radius:0;background:transparent}
+#strate-slider::-moz-range-thumb{width:12px;height:2px;border:0;border-radius:0;background:transparent}
+#strate-handle{position:absolute;z-index:2;left:50%;top:0;width:12px;height:2px;background:#111;transform:translate(-50%,-50%);pointer-events:none}
+#strate-slider:focus-visible::-webkit-slider-thumb{outline:1px solid #777;outline-offset:3px}
+#strate-slider:focus-visible::-moz-range-thumb{outline:1px solid #777;outline-offset:3px}
+@media(max-width:560px){.text{padding:12px}.text .n{font-size:8px;margin-bottom:6px}.text h2{font-size:14px;margin-bottom:7px}.text p{font-size:10px}.arrow{width:27px;height:36px}#strate-control{right:2px;top:3px;bottom:3px;width:28px}#strate-slider{width:28px}}
+
+/* Commandes de diaporama : petites, blanches et sans fond */
+.arrow,.nav,.close{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:28px;
+  height:28px;
+  padding:0;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  color:#fff;
+  font-family:Helvetica,Arial,sans-serif;
+  font-size:20px;
+  font-weight:400;
+  line-height:1;
+  text-align:center;
+  cursor:pointer;
+}
+.arrow{top:50%;transform:translateY(-50%)}
+.arrow.prev{left:4px}
+.arrow.next{right:4px}
+.nav{top:50%;transform:translateY(-50%)}
+.nav.prev{left:12px}
+.nav.next{right:12px}
+.close{right:12px;top:10px}
+/* Pas de surbrillance de focus sur les commandes du plein écran */
+.nav:focus,.nav:focus-visible,.close:focus,.close:focus-visible{
+  outline:none;
+  box-shadow:none;
+}
+@media(max-width:560px){
+  .arrow,.nav,.close{width:26px;height:26px;font-size:18px}
+  .arrow.prev{left:3px}
+  .arrow.next{right:3px}
+  .nav.prev{left:8px}
+  .nav.next{right:8px}
+  .close{right:8px;top:8px}
+}
+
+</style>
+</head>
+<body>
+<main id="site"></main>
+<div id="strate-meta" aria-live="polite"><span id="meta-title">Nom de l'œuvre</span><span id="meta-nature">Nature / technique</span><span id="meta-lieu">Lieu / année</span></div>
+<div id="strate-control"><input id="strate-slider" type="range" min="0" max="19" step="1" value="0" aria-label="Naviguer entre les strates"><span id="strate-handle" aria-hidden="true"></span></div>
+<div id="viewer" role="dialog" aria-modal="true">
+<button class="close" aria-label="Fermer">×</button><button class="nav prev" aria-label="Précédent">‹</button>
+<div id="viewer-content"></div><button class="nav next" aria-label="Suivant">›</button><div class="caption" id="caption"></div>
+</div>
+<script>
+// AJOUTER OU REMPLACER TES MÉDIAS :
+// Image seule :
+// { type:"image", title:"Titre", description:"Texte", media:"images/ma-photo.jpg" }
+// Vidéo : media désigne le fichier vidéo ; poster désigne une image INDÉPENDANTE
+// qui sera visible dans le carré avant le clic.
+// { type:"video", title:"Titre", description:"Texte", media:"videos/video-01.mp4", poster:"miniatures/video-01.jpg" }
+// Groupe de photos :
+// { type:"gallery", title:"Titre", description:"Texte", media:["images/photo-01.jpg","images/photo-02.jpg"] }
+// Chaque vidéo peut avoir sa propre miniature, modifiable sans toucher à la vidéo.
+// Les chemins sont relatifs à ce fichier HTML.
+const STRATES = [
+{"type":"video","title":"WARM UP + RACE - COHERENCE COSMIQUE","description":"LIVE / 2026 / TUGBA VAROL + ADRIEN CHEVRIER","media":"cocolive.mp4","poster":"cocolive.png"},
+{"type":"video","title":"LAISSER MOI SHUNTER","description":"INSTALLATION / 2023 / LA MAISON DU JARDINIER / CHAUX LES PORTS","media":"shunter.mp4","poster":"shunter.png"},
+{"type":"gallery","title":"cubicuité","description":"installation, 2023","media":["cubicuite01.jpg","cubicuite02.jpg","cubicuite03.jpg","cubicuite04.jpg"]},
+{"type":"gallery","title":"limbos","description":"installation - 2018","media":["fantasme01.jpg","fantasme02.jpg","fantasme03.jpg"]},
+{"type":"image","title":"Fragments de lumière","description":"Une étude de la lumière sur une surface minérale. Texte provisoire à remplacer.","media":"data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23d8d3ca%22/%3E%3Cpath%20d%3D%22M0%20100%20L600%2020%20L600%20250%20L0%20340Z%22%20fill%3D%22%23292929%22/%3E%3Ccircle%20cx%3D%22170%22%20cy%3D%22190%22%20r%3D%2295%22%20fill%3D%22%238c877e%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20330%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%23292929%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M40%200%20L180%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%2040%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E"},
+{"type":"gallery","title":"Études de matière","description":"Un ensemble de photographies autour des matières et des surfaces.","media":["data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23c7c7c7%22/%3E%3Cpath%20d%3D%22M0%20137%20L600%2069%20L600%20274%20L0%20320Z%22%20fill%3D%22%23171717%22/%3E%3Ccircle%20cx%3D%22215%22%20cy%3D%22217%22%20r%3D%22102%22%20fill%3D%22%23777777%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20345%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%23171717%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M65%200%20L198%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%20105%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E","data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23b9b2a7%22/%3E%3Cpath%20d%3D%22M0%20174%20L600%20118%20L600%20298%20L0%20300Z%22%20fill%3D%22%233a3936%22/%3E%3Ccircle%20cx%3D%22260%22%20cy%3D%22244%22%20r%3D%22109%22%20fill%3D%22%23e7e2d8%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20360%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%233a3936%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M90%200%20L216%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%20170%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E","data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23d2d2d2%22/%3E%3Cpath%20d%3D%22M0%20211%20L600%20167%20L600%20322%20L0%20280Z%22%20fill%3D%22%234b4b4b%22/%3E%3Ccircle%20cx%3D%22305%22%20cy%3D%22271%22%20r%3D%22116%22%20fill%3D%22%23999999%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20375%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%234b4b4b%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M115%200%20L234%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%20235%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E"]},
+{"type":"video","title":"Mouvement I","description":"Vidéo de démonstration. Le fichier vidéo pourra être remplacé dans le code.","media":"data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23b9b2a7%22/%3E%3Cpath%20d%3D%22M0%20174%20L600%20118%20L600%20298%20L0%20300Z%22%20fill%3D%22%233a3936%22/%3E%3Ccircle%20cx%3D%22260%22%20cy%3D%22244%22%20r%3D%22109%22%20fill%3D%22%23e7e2d8%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20360%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%233a3936%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M90%200%20L216%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%20170%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E","poster":"data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23b9b2a7%22/%3E%3Cpath%20d%3D%22M0%20174%20L600%20118%20L600%20298%20L0%20300Z%22%20fill%3D%22%233a3936%22/%3E%3Ccircle%20cx%3D%22260%22%20cy%3D%22244%22%20r%3D%22109%22%20fill%3D%22%23e7e2d8%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20360%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%233a3936%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M90%200%20L216%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%20170%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E"},
+{"type":"image","title":"Architecture silencieuse","description":"Lignes, volumes et contrastes. Une description fictive pour tester la composition.","media":"data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23d2d2d2%22/%3E%3Cpath%20d%3D%22M0%20211%20L600%20167%20L600%20322%20L0%20280Z%22%20fill%3D%22%234b4b4b%22/%3E%3Ccircle%20cx%3D%22305%22%20cy%3D%22271%22%20r%3D%22116%22%20fill%3D%22%23999999%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20375%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%234b4b4b%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M115%200%20L234%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%20235%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E"},
+{"type":"gallery","title":"Trois paysages","description":"Un groupe de photographies à parcourir dans le carré ou en plein écran.","media":["data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23c9c0b4%22/%3E%3Cpath%20d%3D%22M0%20248%20L600%20216%20L600%20346%20L0%20260Z%22%20fill%3D%22%23222222%22/%3E%3Ccircle%20cx%3D%22350%22%20cy%3D%22298%22%20r%3D%22123%22%20fill%3D%22%237c756c%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20390%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%23222222%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M140%200%20L252%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%20300%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E","data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23d8d3ca%22/%3E%3Cpath%20d%3D%22M0%20100%20L600%2020%20L600%20250%20L0%20340Z%22%20fill%3D%22%23292929%22/%3E%3Ccircle%20cx%3D%22170%22%20cy%3D%22190%22%20r%3D%2295%22%20fill%3D%22%238c877e%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20330%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%23292929%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M40%200%20L180%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%2040%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E","data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23c7c7c7%22/%3E%3Cpath%20d%3D%22M0%20137%20L600%2069%20L600%20274%20L0%20320Z%22%20fill%3D%22%23171717%22/%3E%3Ccircle%20cx%3D%22215%22%20cy%3D%22217%22%20r%3D%22102%22%20fill%3D%22%23777777%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20345%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%23171717%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M65%200%20L198%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%20105%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E"]},
+{"type":"image","title":"Surface blanche","description":"Une photographie seule, sans effet ni encadrement supplémentaire.","media":"data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23d8d3ca%22/%3E%3Cpath%20d%3D%22M0%20100%20L600%2020%20L600%20250%20L0%20340Z%22%20fill%3D%22%23292929%22/%3E%3Ccircle%20cx%3D%22170%22%20cy%3D%22190%22%20r%3D%2295%22%20fill%3D%22%238c877e%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20330%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%23292929%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M40%200%20L180%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%2040%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E"},
+{"type":"video","title":"Mouvement II","description":"Deuxième emplacement vidéo de démonstration.","media":"data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23c7c7c7%22/%3E%3Cpath%20d%3D%22M0%20137%20L600%2069%20L600%20274%20L0%20320Z%22%20fill%3D%22%23171717%22/%3E%3Ccircle%20cx%3D%22215%22%20cy%3D%22217%22%20r%3D%22102%22%20fill%3D%22%23777777%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20345%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%23171717%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M65%200%20L198%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%20105%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E","poster":"data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23c7c7c7%22/%3E%3Cpath%20d%3D%22M0%20137%20L600%2069%20L600%20274%20L0%20320Z%22%20fill%3D%22%23171717%22/%3E%3Ccircle%20cx%3D%22215%22%20cy%3D%22217%22%20r%3D%22102%22%20fill%3D%22%23777777%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20345%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%23171717%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M65%200%20L198%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%20105%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E"},
+{"type":"gallery","title":"Détails urbains","description":"Une série de vues architecturales et de détails urbains.","media":["data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23b9b2a7%22/%3E%3Cpath%20d%3D%22M0%20174%20L600%20118%20L600%20298%20L0%20300Z%22%20fill%3D%22%233a3936%22/%3E%3Ccircle%20cx%3D%22260%22%20cy%3D%22244%22%20r%3D%22109%22%20fill%3D%22%23e7e2d8%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20360%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%233a3936%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M90%200%20L216%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%20170%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E","data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23d2d2d2%22/%3E%3Cpath%20d%3D%22M0%20211%20L600%20167%20L600%20322%20L0%20280Z%22%20fill%3D%22%234b4b4b%22/%3E%3Ccircle%20cx%3D%22305%22%20cy%3D%22271%22%20r%3D%22116%22%20fill%3D%22%23999999%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20375%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%234b4b4b%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M115%200%20L234%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%20235%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E","data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23c9c0b4%22/%3E%3Cpath%20d%3D%22M0%20248%20L600%20216%20L600%20346%20L0%20260Z%22%20fill%3D%22%23222222%22/%3E%3Ccircle%20cx%3D%22350%22%20cy%3D%22298%22%20r%3D%22123%22%20fill%3D%22%237c756c%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20390%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%23222222%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M140%200%20L252%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%20300%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E"]},
+{"type":"image","title":"Ligne d'horizon","description":"Une ligne de paysage entre espace et matière.","media":"data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23d2d2d2%22/%3E%3Cpath%20d%3D%22M0%20211%20L600%20167%20L600%20322%20L0%20280Z%22%20fill%3D%22%234b4b4b%22/%3E%3Ccircle%20cx%3D%22305%22%20cy%3D%22271%22%20r%3D%22116%22%20fill%3D%22%23999999%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20375%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%234b4b4b%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M115%200%20L234%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%20235%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E"},
+{"type":"video","title":"Mouvement III","description":"Troisième emplacement vidéo de démonstration.","media":"data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23c9c0b4%22/%3E%3Cpath%20d%3D%22M0%20248%20L600%20216%20L600%20346%20L0%20260Z%22%20fill%3D%22%23222222%22/%3E%3Ccircle%20cx%3D%22350%22%20cy%3D%22298%22%20r%3D%22123%22%20fill%3D%22%237c756c%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20390%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%23222222%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M140%200%20L252%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%20300%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E","poster":"data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23c9c0b4%22/%3E%3Cpath%20d%3D%22M0%20248%20L600%20216%20L600%20346%20L0%20260Z%22%20fill%3D%22%23222222%22/%3E%3Ccircle%20cx%3D%22350%22%20cy%3D%22298%22%20r%3D%22123%22%20fill%3D%22%237c756c%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20390%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%23222222%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M140%200%20L252%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%20300%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E"},
+{"type":"gallery","title":"Études en noir et blanc","description":"Une galerie de photographies en noir et blanc.","media":["data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23d8d3ca%22/%3E%3Cpath%20d%3D%22M0%20100%20L600%2020%20L600%20250%20L0%20340Z%22%20fill%3D%22%23292929%22/%3E%3Ccircle%20cx%3D%22170%22%20cy%3D%22190%22%20r%3D%2295%22%20fill%3D%22%238c877e%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20330%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%23292929%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M40%200%20L180%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%2040%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E","data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23c7c7c7%22/%3E%3Cpath%20d%3D%22M0%20137%20L600%2069%20L600%20274%20L0%20320Z%22%20fill%3D%22%23171717%22/%3E%3Ccircle%20cx%3D%22215%22%20cy%3D%22217%22%20r%3D%22102%22%20fill%3D%22%23777777%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20345%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%23171717%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M65%200%20L198%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%20105%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E","data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23b9b2a7%22/%3E%3Cpath%20d%3D%22M0%20174%20L600%20118%20L600%20298%20L0%20300Z%22%20fill%3D%22%233a3936%22/%3E%3Ccircle%20cx%3D%22260%22%20cy%3D%22244%22%20r%3D%22109%22%20fill%3D%22%23e7e2d8%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20360%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%233a3936%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M90%200%20L216%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%20170%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E"]},
+{"type":"image","title":"Espace et silence","description":"Une image et son texte dans la diagonale inversée.","media":"data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23c7c7c7%22/%3E%3Cpath%20d%3D%22M0%20137%20L600%2069%20L600%20274%20L0%20320Z%22%20fill%3D%22%23171717%22/%3E%3Ccircle%20cx%3D%22215%22%20cy%3D%22217%22%20r%3D%22102%22%20fill%3D%22%23777777%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20345%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%23171717%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M65%200%20L198%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%20105%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E"},
+{"type":"video","title":"Mouvement IV","description":"Quatrième emplacement vidéo de démonstration.","media":"data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23b9b2a7%22/%3E%3Cpath%20d%3D%22M0%20174%20L600%20118%20L600%20298%20L0%20300Z%22%20fill%3D%22%233a3936%22/%3E%3Ccircle%20cx%3D%22260%22%20cy%3D%22244%22%20r%3D%22109%22%20fill%3D%22%23e7e2d8%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20360%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%233a3936%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M90%200%20L216%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%20170%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E","poster":"data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23b9b2a7%22/%3E%3Cpath%20d%3D%22M0%20174%20L600%20118%20L600%20298%20L0%20300Z%22%20fill%3D%22%233a3936%22/%3E%3Ccircle%20cx%3D%22260%22%20cy%3D%22244%22%20r%3D%22109%22%20fill%3D%22%23e7e2d8%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20360%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%233a3936%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M90%200%20L216%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%20170%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E"},
+{"type":"image","title":"Lumière oblique","description":"Une description fictive à remplacer par ton propre texte.","media":"data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23d2d2d2%22/%3E%3Cpath%20d%3D%22M0%20211%20L600%20167%20L600%20322%20L0%20280Z%22%20fill%3D%22%234b4b4b%22/%3E%3Ccircle%20cx%3D%22305%22%20cy%3D%22271%22%20r%3D%22116%22%20fill%3D%22%23999999%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20375%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%234b4b4b%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M115%200%20L234%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%20235%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E"},
+{"type":"gallery","title":"Roches et reliefs","description":"Un groupe de photographies consacré aux formes et aux reliefs.","media":["data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23c9c0b4%22/%3E%3Cpath%20d%3D%22M0%20248%20L600%20216%20L600%20346%20L0%20260Z%22%20fill%3D%22%23222222%22/%3E%3Ccircle%20cx%3D%22350%22%20cy%3D%22298%22%20r%3D%22123%22%20fill%3D%22%237c756c%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20390%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%23222222%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M140%200%20L252%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%20300%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E","data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23d8d3ca%22/%3E%3Cpath%20d%3D%22M0%20100%20L600%2020%20L600%20250%20L0%20340Z%22%20fill%3D%22%23292929%22/%3E%3Ccircle%20cx%3D%22170%22%20cy%3D%22190%22%20r%3D%2295%22%20fill%3D%22%238c877e%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20330%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%23292929%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M40%200%20L180%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%2040%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E","data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23c7c7c7%22/%3E%3Cpath%20d%3D%22M0%20137%20L600%2069%20L600%20274%20L0%20320Z%22%20fill%3D%22%23171717%22/%3E%3Ccircle%20cx%3D%22215%22%20cy%3D%22217%22%20r%3D%22102%22%20fill%3D%22%23777777%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20345%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%23171717%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M65%200%20L198%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%20105%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E"]},
+{"type":"image","title":"Composition ouverte","description":"Une photographie individuelle dans la composition.","media":"data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23d8d3ca%22/%3E%3Cpath%20d%3D%22M0%20100%20L600%2020%20L600%20250%20L0%20340Z%22%20fill%3D%22%23292929%22/%3E%3Ccircle%20cx%3D%22170%22%20cy%3D%22190%22%20r%3D%2295%22%20fill%3D%22%238c877e%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20330%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%23292929%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M40%200%20L180%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%2040%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E"},
+{"type":"video","title":"Mouvement V","description":"Cinquième emplacement vidéo de démonstration.","media":"data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23c7c7c7%22/%3E%3Cpath%20d%3D%22M0%20137%20L600%2069%20L600%20274%20L0%20320Z%22%20fill%3D%22%23171717%22/%3E%3Ccircle%20cx%3D%22215%22%20cy%3D%22217%22%20r%3D%22102%22%20fill%3D%22%23777777%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20345%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%23171717%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M65%200%20L198%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%20105%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E","poster":"data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23c7c7c7%22/%3E%3Cpath%20d%3D%22M0%20137%20L600%2069%20L600%20274%20L0%20320Z%22%20fill%3D%22%23171717%22/%3E%3Ccircle%20cx%3D%22215%22%20cy%3D%22217%22%20r%3D%22102%22%20fill%3D%22%23777777%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20345%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%23171717%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M65%200%20L198%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%20105%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E"},
+{"type":"gallery","title":"Variations","description":"Un groupe d'images avec navigation intégrée et diaporama.","media":["data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23b9b2a7%22/%3E%3Cpath%20d%3D%22M0%20174%20L600%20118%20L600%20298%20L0%20300Z%22%20fill%3D%22%233a3936%22/%3E%3Ccircle%20cx%3D%22260%22%20cy%3D%22244%22%20r%3D%22109%22%20fill%3D%22%23e7e2d8%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20360%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%233a3936%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M90%200%20L216%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%20170%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E","data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23d2d2d2%22/%3E%3Cpath%20d%3D%22M0%20211%20L600%20167%20L600%20322%20L0%20280Z%22%20fill%3D%22%234b4b4b%22/%3E%3Ccircle%20cx%3D%22305%22%20cy%3D%22271%22%20r%3D%22116%22%20fill%3D%22%23999999%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20375%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%234b4b4b%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M115%200%20L234%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%20235%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E","data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23c9c0b4%22/%3E%3Cpath%20d%3D%22M0%20248%20L600%20216%20L600%20346%20L0%20260Z%22%20fill%3D%22%23222222%22/%3E%3Ccircle%20cx%3D%22350%22%20cy%3D%22298%22%20r%3D%22123%22%20fill%3D%22%237c756c%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20390%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%23222222%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M140%200%20L252%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%20300%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E"]},
+{"type":"image","title":"Dernière lumière","description":"Avant-dernière strate de la maquette.","media":"data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23d2d2d2%22/%3E%3Cpath%20d%3D%22M0%20211%20L600%20167%20L600%20322%20L0%20280Z%22%20fill%3D%22%234b4b4b%22/%3E%3Ccircle%20cx%3D%22305%22%20cy%3D%22271%22%20r%3D%22116%22%20fill%3D%22%23999999%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20375%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%234b4b4b%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M115%200%20L234%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%20235%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E"},
+{"type":"image","title":"Fin de série","description":"Vingtième strate. La série pourra être prolongée.","media":"data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20600%22%3E%3Crect%20width%3D%22600%22%20height%3D%22600%22%20fill%3D%22%23c9c0b4%22/%3E%3Cpath%20d%3D%22M0%20248%20L600%20216%20L600%20346%20L0%20260Z%22%20fill%3D%22%23222222%22/%3E%3Ccircle%20cx%3D%22350%22%20cy%3D%22298%22%20r%3D%22123%22%20fill%3D%22%237c756c%22%20opacity%3D%22.85%22/%3E%3Cpath%20d%3D%22M0%20480%20Q180%20390%20330%20500%20T600%20420%20V600%20H0Z%22%20fill%3D%22%23222222%22%20opacity%3D%22.8%22/%3E%3Cpath%20d%3D%22M140%200%20L252%20600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20opacity%3D%22.35%22/%3E%3Cpath%20d%3D%22M0%20300%20H600%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20opacity%3D%22.35%22/%3E%3C/svg%3E"}
+];
+const site=document.getElementById('site'), viewer=document.getElementById('viewer'), content=document.getElementById('viewer-content'), caption=document.getElementById('caption');
+// Une fonction de navigation photo par strate de type galerie (index = numéro de strate).
+const galleryMoves={};
+let currentStrate=0,currentPhoto=0;
+const list=item=>Array.isArray(item.media)?item.media:[item.media];
+function open(i,p=0){currentStrate=i;currentPhoto=p;renderViewer();viewer.classList.add('open');document.body.style.overflow='hidden'}
+function close(){const v=content.querySelector('video');if(v)v.pause();viewer.classList.remove('open');content.replaceChildren();document.body.style.overflow=''}
+function renderViewer(){
+ const item=STRATES[currentStrate];content.replaceChildren();
+ if(item.type==='video'){const v=document.createElement('video');v.src=item.media;v.poster=item.poster;v.controls=true;v.controlsList='nodownload noplaybackrate noremoteplayback';v.disablePictureInPicture=true;v.disableRemotePlayback=true;v.autoplay=true;v.playsInline=true;content.append(v);viewer.querySelectorAll('.nav').forEach(b=>b.hidden=true)}
+ else{const img=document.createElement('img');img.src=list(item)[currentPhoto];content.append(img);viewer.querySelectorAll('.nav').forEach(b=>b.hidden=item.type!=='gallery')}
+ caption.textContent=String(currentStrate+1).padStart(2,'0')+' — '+item.title+(item.type==='gallery'?' · '+(currentPhoto+1)+'/'+item.media.length:'');
+}
+function step(d){const item=STRATES[currentStrate];if(item.type!=='gallery')return;currentPhoto=(currentPhoto+d+item.media.length)%item.media.length;renderViewer()}
+STRATES.forEach((item,i)=>{
+ const section=document.createElement('section');section.className='strate '+(i===0?'active':'');
+ const grid=document.createElement('div');grid.className='composition';
+ const media=document.createElement('div');media.className='cell media';
+ const img=document.createElement('img');img.src=Array.isArray(item.media)?item.media[0]:item.poster||item.media;img.alt=item.title;media.append(img);
+ if(item.type==='video'){
+  const play=document.createElement('span');
+  play.className='video-play';
+  play.setAttribute('aria-hidden','true');
+  media.append(play);
+  media.setAttribute('role','button');
+  media.setAttribute('aria-label','Lire la vidéo : '+item.title);
+  media.tabIndex=0;
+  media.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();open(i)}});
+ }
+ if(item.type==='gallery'){
+  let p=0;const prev=document.createElement('button'),next=document.createElement('button'),count=document.createElement('span');
+  prev.className='arrow prev';prev.textContent='‹';next.className='arrow next';next.textContent='›';count.className='count';count.textContent='1/'+item.media.length;
+  function move(d){p=(p+d+item.media.length)%item.media.length;img.src=item.media[p];count.textContent=(p+1)+'/'+item.media.length}
+  // La fonction move est mémorisée : les flèches gauche/droite du clavier y accèdent.
+  galleryMoves[i]=move;
+  prev.onclick=e=>{e.stopPropagation();move(-1)};next.onclick=e=>{e.stopPropagation();move(1)};media.append(prev,next,count);
+  media.onclick=()=>open(i,p);
+ }else media.onclick=()=>open(i);
+ grid.append(media);section.append(grid);site.append(section);
+});
+let activeStrate=0, wheelLocked=false, wheelRemainder=0;
+const planes=[...document.querySelectorAll('.strate')];
+const strateSlider=document.getElementById('strate-slider');
+const strateHandle=document.getElementById('strate-handle');
+const metaTitle=document.getElementById('meta-title'),metaNature=document.getElementById('meta-nature'),metaLieu=document.getElementById('meta-lieu');
+strateSlider.max=String(STRATES.length-1);
+function positionHandle(){
+ const min=Number(strateSlider.min)||0, max=Number(strateSlider.max)||1;
+ const ratio=max===min?0:(Number(strateSlider.value)-min)/(max-min);
+ // Le tiret utilise exactement le même axe central que la ligne CSS.
+ strateHandle.style.top=(ratio*100)+'%';
+}
+positionHandle();
+strateSlider.addEventListener('input',positionHandle);
+function showStrate(index){
+ activeStrate=Math.max(0,Math.min(STRATES.length-1,index));
+ const item=STRATES[activeStrate];
+ // Trois lignes type du cartel : elles reprennent les données si elles existent,
+ // sinon elles affichent les textes de substitution à remplacer plus tard.
+ metaTitle.textContent=item.title||"Nom de l'œuvre";
+ metaNature.textContent=item.nature||'Nature / technique';
+ metaLieu.textContent=item.lieu||'Lieu / année';
+ // Le cartel alterne : à gauche pour les strates paires, à droite pour les impaires.
+ const meta=document.getElementById('strate-meta');
+ meta.classList.toggle('side-left',activeStrate%2===0);
+ meta.classList.toggle('side-right',activeStrate%2===1);
+ planes.forEach((plane,i)=>plane.classList.toggle('active',i===activeStrate));
+ strateSlider.value=String(activeStrate);
+ positionHandle();
+}
+// Le curseur peut être déplacé à la souris ou au doigt. Chaque cran = une strate.
+strateSlider.addEventListener('input',()=>showStrate(Number(strateSlider.value)));
+strateSlider.addEventListener('wheel',e=>{e.preventDefault();navigate(e.deltaY>0?1:-1)},{passive:false});
+function navigate(direction){showStrate(activeStrate+direction)}
+showStrate(0);
+// La roulette et le pavé tactile font avancer/reculer dans la profondeur.
+window.addEventListener('wheel',e=>{
+ if(viewer.classList.contains('open'))return;
+ e.preventDefault();
+ if(wheelLocked)return;
+ wheelRemainder+=e.deltaY;
+ if(Math.abs(wheelRemainder)>=35){
+  navigate(wheelRemainder>0?1:-1);
+  wheelRemainder=0;wheelLocked=true;
+  setTimeout(()=>{wheelLocked=false},420);
+ }
+},{passive:false});
+// Navigation tactile : swipe vertical = changer de strate, swipe horizontal = changer de photo (galeries).
+let touchStartX=0,touchStartY=0,touchStartT=0;
+const SWIPE_MIN=40; // distance minimale (px) pour valider un swipe
+document.addEventListener('touchstart',e=>{
+ touchStartX=e.changedTouches[0].clientX;
+ touchStartY=e.changedTouches[0].clientY;
+ touchStartT=Date.now();
+},{passive:true});
+document.addEventListener('touchend',e=>{
+ const dx=e.changedTouches[0].clientX-touchStartX;
+ const dy=e.changedTouches[0].clientY-touchStartY;
+ const dt=Date.now()-touchStartT;
+ // Un tap court (moins de 250 ms) n'est pas un swipe : on laisse les clics fonctionner.
+ if(dt>600)return;
+ if(viewer.classList.contains('open')){
+  if(Math.abs(dx)>SWIPE_MIN&&Math.abs(dx)>Math.abs(dy)*1.5)step(dx<0?1:-1);
+  return;
+ }
+ if(Math.abs(dx)>Math.abs(dy)){
+  // Horizontal : sur une galerie, on passe de photo en photo.
+  if(Math.abs(dx)>SWIPE_MIN){
+   const item=STRATES[activeStrate];
+   if(item&&item.type==='gallery'&&galleryMoves[activeStrate])galleryMoves[activeStrate](dx<0?1:-1);
+  }
+ }else{
+  // Vertical : on change de strate, comme avec les flèches haut/bas.
+  if(Math.abs(dy)>SWIPE_MIN)navigate(dy<0?1:-1);
+ }
+},{passive:true});
+viewer.querySelector('.close').onclick=close;viewer.querySelector('.prev').onclick=()=>step(-1);viewer.querySelector('.next').onclick=()=>step(1);
+document.addEventListener('keydown',e=>{
+ if(viewer.classList.contains('open')){
+  if(e.key==='Escape')close();
+  if(e.key==='ArrowLeft')step(-1);
+  if(e.key==='ArrowRight')step(1);
+  return;
+ }
+ if(e.key==='ArrowDown'||e.key==='PageDown')navigate(1);
+ if(e.key==='ArrowUp'||e.key==='PageUp')navigate(-1);
+ // Flèches gauche/droite : sur une strate galerie, on passe de photo en photo.
+ if(e.key==='ArrowLeft'||e.key==='ArrowRight'){
+  const item=STRATES[activeStrate];
+  if(item&&item.type==='gallery'&&galleryMoves[activeStrate]){
+   e.preventDefault();
+   galleryMoves[activeStrate](e.key==='ArrowRight'?1:-1);
+  }
+ }
+});
+</script>
+</body></html>
